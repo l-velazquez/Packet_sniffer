@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Packet Sniffer Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div class="background"></div>
+
+    <div class="container">
+      <header class="glass-card header">
+        <h1>🔍 Packet Sniffer Dashboard</h1>
+        <p class="subtitle">Real-time network traffic analysis</p>
+      </header>
+
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="glass-card stat-card">
+          <span class="stat-label">Total Packets</span>
+          <span class="stat-value" id="total-packets">0</span>
+        </div>
+        <div class="glass-card stat-card">
+          <span class="stat-label">Packets/sec</span>
+          <span class="stat-value" id="pps">0</span>
+        </div>
+        <div class="glass-card stat-card">
+          <span class="stat-label">TCP</span>
+          <span class="stat-value" id="tcp-count">0</span>
+        </div>
+        <div class="glass-card stat-card">
+          <span class="stat-label">UDP</span>
+          <span class="stat-value" id="udp-count">0</span>
+        </div>
+        <div class="glass-card stat-card">
+          <span class="stat-label">ARP</span>
+          <span class="stat-value" id="arp-count">0</span>
+        </div>
+        <div class="glass-card stat-card">
+          <span class="stat-label">IPv6</span>
+          <span class="stat-value" id="ipv6-count">0</span>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-grid">
+        <div class="glass-card chart-card">
+          <h3>Protocol Distribution</h3>
+          <canvas id="protocol-chart"></canvas>
+        </div>
+        <div class="glass-card chart-card">
+          <h3>Application Protocols</h3>
+          <canvas id="app-chart"></canvas>
+        </div>
+        <div class="glass-card chart-card wide">
+          <h3>Packets per Second</h3>
+          <canvas id="pps-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Packet Table -->
+      <div class="glass-card table-card">
+        <h3>Recent Packets <span id="packet-count">(0/200)</span></h3>
+        <div class="table-wrapper">
+          <table id="packet-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Source IP</th>
+                <th>Dest IP</th>
+                <th>Protocol</th>
+                <th>Port</th>
+                <th>Size</th>
+              </tr>
+            </thead>
+            <tbody id="packet-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+  </body>
+</html>
