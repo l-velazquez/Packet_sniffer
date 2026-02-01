@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Packet Sniffer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: rgba(0, 0, 0, 0.3);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-muted: rgba(255, 255, 255, 0.4);
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --accent-yellow: #eab308;
+            --accent-green: #22c55e;
+            --accent-cyan: #06b6d4;
+            --accent-purple: #a855f7;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+            font-weight: 400;
+            letter-spacing: -0.01em;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(168, 85, 247, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(6, 182, 212, 0.04) 0%, transparent 60%);
+            z-index: -1;
+            animation: gradientShift 20s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            50% { transform: translate(-2%, -2%) rotate(1deg); }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        header {
+            margin-bottom: 48px;
+            text-align: left;
+        }
+
+        .title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        h1 {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            text-align: left;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-value .unit {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-left: 4px;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .charts-column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .section-title {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+        }
+
+        .table-container {
+            max-height: 480px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .table-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: var(--bg-secondary);
+            z-index: 10;
+        }
+
+        th {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        td {
+            padding: 14px 16px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-variant-numeric: tabular-nums;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .mono {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+            font-size: 12px;
+            letter-spacing: 0;
+        }
+
+        .proto-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .proto-TCP {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .proto-UDP {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+
+        .proto-DNS {
+            background: rgba(234, 179, 8, 0.15);
+            color: var(--accent-yellow);
+        }
+
+        .proto-HTTP {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--accent-green);
+        }
+
+        .proto-HTTPS {
+            background: rgba(6, 182, 212, 0.15);
+            color: var(--accent-cyan);
+        }
+
+        .proto-SSH {
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--accent-purple);
+        }
+
+        .proto-ICMP, .proto-ARP, .proto-OTHER {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-secondary);
+        }
+
+        .size-cell {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 16px;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
+        }
+
+        .feed-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .feed-title {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+        }
+
+        .live-text {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-green);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <p class="title">Network Monitor</p>
+        <h1>Traffic Visualizer</h1>
+    </header>
+
+    <div class="stats-grid">
+        <div class="glass-card stat-card">
+            <span class="stat-label">Total Packets</span>
+            <div class="stat-value" id="total-packets">0</div>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-label">Network Speed</span>
+            <div class="stat-value"><span id="speed">0</span><span class="unit" id="speed-unit">B/s</span></div>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-label">IPv4</span>
+            <div class="stat-value" id="ipv4-count">0</div>
+        </div>
+        <div class="glass-card stat-card">
+            <span class="stat-label">IPv6</span>
+            <div class="stat-value" id="ipv6-count">0</div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="charts-column">
+            <div class="glass-card">
+                <h3 class="section-title">Protocols</h3>
+                <div class="chart-container">
+                    <canvas id="protocolChart"></canvas>
+                </div>
+            </div>
+            <div class="glass-card">
+                <h3 class="section-title">Application Layer</h3>
+                <div class="chart-container">
+                    <canvas id="appChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card">
+            <div class="feed-header">
+                <span class="feed-title">Live Packet Feed</span>
+                <div class="live-indicator">
+                    <span class="live-dot"></span>
+                    <span class="live-text">Live</span>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th>Destination</th>
+                            <th>Protocol</th>
+                            <th>Size</th>
+                        </tr>
+                    </thead>
+                    <tbody id="packet-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+
+    Chart.defaults.color = 'rgba(255, 255, 255, 0.5)';
+    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.08)';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    const protocolCtx = document.getElementById('protocolChart').getContext('2d');
+    const protocolChart = new Chart(protocolCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['TCP', 'UDP', 'ICMP', 'ARP'],
+            datasets: [{
+                data: [0, 0, 0, 0],
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(239, 68, 68, 0.8)',
+                    'rgba(234, 179, 8, 0.8)',
+                    'rgba(6, 182, 212, 0.8)'
+                ],
+                borderColor: 'transparent',
+                borderWidth: 0,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: { size: 11, weight: '500' }
+                    }
+                }
+            }
+        }
+    });
+
+    const appCtx = document.getElementById('appChart').getContext('2d');
+    const appChart = new Chart(appCtx, {
+        type: 'bar',
+        data: {
+            labels: ['HTTP/S', 'DNS', 'SSH', 'Other'],
+            datasets: [{
+                data: [0, 0, 0, 0],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.6)',
+                    'rgba(234, 179, 8, 0.6)',
+                    'rgba(168, 85, 247, 0.6)',
+                    'rgba(255, 255, 255, 0.2)'
+                ],
+                borderRadius: 6,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 10, weight: '500' } }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                    ticks: { font: { size: 10 } }
+                }
+            }
+        }
+    });
+
+    socket.on('update_data', function(msg) {
+        const stats = msg.stats;
+        const packets = msg.packets;
+
+        document.getElementById('total-packets').textContent = stats.total.toLocaleString();
+        document.getElementById('ipv4-count').textContent = stats.ip_version.ipv4.toLocaleString();
+        document.getElementById('ipv6-count').textContent = stats.ip_version.ipv6.toLocaleString();
+
+        let speed = stats.speed;
+        let unit = 'B/s';
+        if (speed > 1024) { speed = (speed / 1024).toFixed(1); unit = 'KB/s'; }
+        if (speed > 1024) { speed = (speed / 1024).toFixed(1); unit = 'MB/s'; }
+        document.getElementById('speed').textContent = speed;
+        document.getElementById('speed-unit').textContent = unit;
+
+        protocolChart.data.datasets[0].data = [
+            stats.ip.tcp, stats.ip.udp, stats.ip.icmp, stats.ethernet.arp
+        ];
+        protocolChart.update('none');
+
+        appChart.data.datasets[0].data = [
+            stats.application.http + stats.application.https,
+            stats.application.dns,
+            stats.application.ssh,
+            stats.application.others
+        ];
+        appChart.update('none');
+
+        const tableBody = document.getElementById('packet-table-body');
+        const fragment = document.createDocumentFragment();
+
+        packets.forEach(pkt => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="mono">${pkt.src}</td>
+                <td class="mono">${pkt.dst}</td>
+                <td><span class="proto-tag proto-${pkt.proto}">${pkt.proto}</span></td>
+                <td class="size-cell">${pkt.len}</td>
+            `;
+            fragment.appendChild(row);
+        });
+
+        tableBody.innerHTML = '';
+        tableBody.appendChild(fragment);
+    });
+</script>
+
+</body>
+</html>
